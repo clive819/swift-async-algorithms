@@ -3,6 +3,32 @@ import XCTest
 
 final class TestMapError: XCTestCase {
 
+    @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+    func test_123() async throws {
+        let array = [URLError(.badURL)]
+        let sequence = array.async
+            .map { throw $0 }
+            .mapError { error in
+                // `AsyncSequence.Failure` is defined as `any Error`
+                // so the `error` here is still `any Error`.
+                // There's no benefit by adopting `AsyncSequence.Failure` v.s. `any Error`.
+                MyAwesomeError()
+            }
+
+        do {
+            for try await _ in sequence {
+                XCTFail("sequence should throw")
+            }
+        } catch {
+#if compiler(>=6.0)
+            // NO-OP
+            // The compiler already checks that for us since we're using typed throws.
+#else
+            XCTAssert(error is MyAwesomeError)
+#endif
+        }
+    }
+
     func test_mapError() async throws {
         let array = [URLError(.badURL)]
         let sequence = array.async
@@ -16,7 +42,12 @@ final class TestMapError: XCTestCase {
                 XCTFail("sequence should throw")
             }
         } catch {
-            _ = try XCTUnwrap(error as? MyAwesomeError)
+#if compiler(>=6.0)
+            // NO-OP
+            // The compiler already checks that for us since we're using typed throws.
+#else
+            XCTAssert(error is MyAwesomeError)
+#endif
         }
     }
 
